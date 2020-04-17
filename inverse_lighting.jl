@@ -5,12 +5,12 @@
 # the parameters of the light source (using gradients).
 # From https://github.com/avik-pal/RayTracer.jl/ by Avik Pal
 
-using RayTracer, Images, Zygote, Flux, Statistics
+using RayTracer, Images, Zygote, Flux, Statistics, Random
 
 # ## Configuring the Scene
 #
 # Reduce the screen_size if the optimization is taking a bit long
-screen_size = (w = 200, h = 200)
+screen_size = (w = 180, h = 180)
 
 scene = load_obj("./tree.obj")
 
@@ -39,7 +39,7 @@ function render(light, scene)
     return array_image
 end
 
-showimg(img) = colorview(RGB, permutedims(img[:,:,:,1], (3,2,1)))
+showimg(img) = colorview(RGB, permutedims(zeroonenorm(img)[:,:,:,1], (3,2,1)))
 
 # ## [Ground Truth Image](@id inv_light)
 #
@@ -58,7 +58,7 @@ target_img = render(target_light, scene)
 # The presence of [`zeroonenorm`](@ref) is very important here. It rescales the
 # values in the image to 0 to 1. If we don't perform this step `Images` will
 # clamp the values while generating the image in RGB format.
-showimg(zeroonenorm(target_img))
+showimg(target_img)
 
 # ## Initial Guess of Lighting Parameters
 #
@@ -70,15 +70,15 @@ light_guess = PointLight(
     position  = Vec3(-1.0f0, -10.0f0, -50.0f0)
 )
 
-showimg(zeroonenorm(render(light_guess, scene)))
+showimg(render(light_guess, scene))
 
 # We shall store the images in `results_inv_lighting` directory
 mkpath("results_inv_lighting")
 
 save("./results_inv_lighting/inv_light_original.png",
-     showimg(zeroonenorm(render(light_gt, scene))))
+     showimg(render(target_light, scene)))
 save("./results_inv_lighting/inv_light_initial.png",
-     showimg(zeroonenorm(render(light_guess, scene))))
+     showimg(render(light_guess, scene)))
 
 # loss function - sum of squares of differences between render and target
 function loss_fn(lighting)
@@ -87,26 +87,19 @@ function loss_fn(lighting)
     return loss
 end
 
-# gradient of loss function
-#grad = l->gradient(loss_fn, l)
-
 # ## Optimization Loop
 #
 # We will use the ADAM optimizer from Flux. (Try experimenting with other
 # optimizers as well). We can also use frameworks like Optim.jl for optimization.
 # We will show how to do it in a future tutorial
-opt = ADAM(1.0)
+opt = ADAM(1.5)
 
-for i in 1:401
-    #loss, back_fn = Zygote._pullback(light_guess) do L
-    #    sum((render(L, scene) .- target_img) .^ 2)
-    #end
-    #@show loss
+@time for i in 1:296
     g = gradient(loss_fn, light_guess)
     update!(opt, light_guess.intensity, g[1].intensity)
     update!(opt, light_guess.position, g[1].position)
     if i % 5 == 1
         save("./results_inv_lighting/iteration_$i.png",
-             showimg(zeroonenorm(render(light_guess, scene))))
+             showimg(render(light_guess, scene)))
     end
 end

@@ -27,3 +27,13 @@ end
 
 @time m = mandel(width=1200,height=900,maxiter=400)
 Gray.(m./80)
+
+## CSV parsing
+
+using CSV, BenchmarkTools
+
+run(`python3 -m timeit -s "import pandas" -p "pandas.read_csv('mixed.csv')"`)
+
+@btime CSV.read("mixed.csv", threaded=false)
+
+@btime CSV.read("mixed.csv", threaded=true)
